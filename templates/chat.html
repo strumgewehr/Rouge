@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - ROUGE</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <a href="/" class="back-btn-small">←</a>
+            <span id="statusText" class="status">Connecting...</span>
+        </div>
+        
+        <div id="messagesContainer" class="messages-container"></div>
+        
+        <div class="input-container">
+            <input type="file" id="imageInput" accept="image/*" style="display: none;">
+            <button id="imageBtn" class="btn-image">📷</button>
+            <input type="text" id="messageInput" class="message-input" placeholder="Type your message...">
+            <button id="sendBtn" class="btn-send">Send</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const roomCode = '{{ room_code }}';
+        let isConnected = false;
+
+        socket.on('connected', () => {
+            console.log('Connected to server');
+            socket.emit('join_room', { room_code: roomCode });
+        });
+
+        socket.on('room_joined', (data) => {
+            if (data.status === 'success') {
+                isConnected = true;
+                document.getElementById('statusText').textContent = 'Connected - Start chatting';
+            }
+        });
+
+        socket.on('receive_message', (data) => {
+            addMessage(data.message, data.sender !== socket.id);
+        });
+
+        socket.on('receive_image', (data) => {
+            addImage(data.image_data, data.sender !== socket.id);
+        });
+
+        function addMessage(message, isReceived) {
+            const container = document.getElementById('messagesContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isReceived ? 'received' : 'sent'}`;
+            messageDiv.textContent = message;
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addImage(imageData, isReceived) {
+            const container = document.getElementById('messagesContainer');
+            const imageDiv = document.createElement('div');
+            imageDiv.className = `message-image ${isReceived ? 'received' : 'sent'}`;
+            const img = document.createElement('img');
+            img.src = `data:image/png;base64,${imageData}`;
+            imageDiv.appendChild(img);
+            container.appendChild(imageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            if (!isConnected) return;
+            
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (message) {
+                socket.emit('send_message', { room_code: roomCode, message: message });
+                input.value = '';
+            }
+        }
+
+        document.getElementById('imageBtn').addEventListener('click', () => {
+            document.getElementById('imageInput').click();
+        });
+
+        document.getElementById('imageInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Check file size
+            if (file.size > 8 * 1024 * 1024) {
+                alert('Image must be smaller than 8MB');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('/upload_image', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (data.image_data) {
+                    socket.emit('send_image', { room_code: roomCode, image_data: data.image_data });
+                } else {
+                    alert('Failed to upload image');
+                }
+            } catch (error) {
+                console.error('Error uploading image:', error);
+                alert('Failed to upload image');
+            }
+        });
+    </script>
+</body>
+</html>
+

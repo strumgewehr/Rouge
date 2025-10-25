@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Join Room - ROUGE</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="content">
+            <a href="/" class="back-btn">← Back</a>
+            
+            <h1 class="title">ROUGE</h1>
+            <p class="subtitle">Enter the Whisper Code</p>
+            
+            <input type="text" id="codeInput" class="code-input" placeholder="Enter 6-digit code" maxlength="6">
+            <button id="joinBtn" class="btn btn-secondary">Join Room</button>
+            
+            <div id="errorMsg" class="error hidden"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        socket.on('connected', (data) => {
+            console.log('Connected to ROUGE');
+        });
+
+        socket.on('room_joined', (data) => {
+            if (data.status === 'success') {
+                window.location.href = `/chat/${data.room_code}`;
+            } else {
+                document.getElementById('errorMsg').textContent = data.message || 'Invalid room code';
+                document.getElementById('errorMsg').classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('joinBtn').addEventListener('click', () => {
+            const code = document.getElementById('codeInput').value.trim();
+            if (code.length === 6 && /^\d+$/.test(code)) {
+                socket.emit('join_room', { room_code: code });
+            } else {
+                document.getElementById('errorMsg').textContent = 'Please enter a valid 6-digit code';
+                document.getElementById('errorMsg').classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('codeInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('joinBtn').click();
+            }
+        });
+    </script>
+</body>
+</html>
+
